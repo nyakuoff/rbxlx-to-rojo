@@ -76,7 +76,7 @@ impl InstructionReader for FileSystem {
                     partition.path = Some(PathBuf::from(SRC).join(path));
                 }
 
-                for mut child in partition.children.values_mut() {
+                for child in partition.children.values_mut() {
                     if let Some(path) = &child.path {
                         child.path = Some(PathBuf::from(SRC).join(path));
                     }
