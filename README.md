@@ -10,7 +10,7 @@ Before you can use rbxl2rojo, you need the following:
 
 If there aren't any scripts in the rbxlx file, rbxl2rojo will return an error.
 
-Download the latest release of rbxl2rojo here: https://github.com/nyakuoff/rbxlx-to-rojo/releases
+Download the latest release of rbxl2rojo here: https://github.com/nyakuoff/rbxl2rojo/releases
 ## Porting the game
 Before you can port your game into Rojo projects, you need a place/model file. If you have an existing game that isn't exported:
 
