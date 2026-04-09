@@ -1,0 +1,108 @@
+name: Release rbxlx-to-rojo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version from Cargo.toml
+        id: version
+        shell: bash
+        run: |
+          version=$(python - <<'PY'
+          import pathlib
+          import tomllib
+
+          cargo_toml = pathlib.Path("Cargo.toml")
+          data = tomllib.loads(cargo_toml.read_text())
+          print(data["package"]["version"])
+          PY
+          )
+
+          if [ -z "$version" ]; then
+            echo "Failed to read package.version from Cargo.toml" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: metadata
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary_path: target/release/rbxlx-to-rojo
+            asset_name: rbxlx-to-rojo-linux-x86_64
+          - os: macos-latest
+            binary_path: target/release/rbxlx-to-rojo
+            asset_name: rbxlx-to-rojo-macos
+          - os: windows-latest
+            binary_path: target/release/rbxlx-to-rojo.exe
+            asset_name: rbxlx-to-rojo-windows.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --locked --release --all-features
+
+      - name: Stage release asset
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          BINARY_PATH: ${{ matrix.binary_path }}
+          ASSET_NAME: ${{ matrix.asset_name }}
+        run: |
+          mkdir -p dist
+          cp "$BINARY_PATH" "dist/${ASSET_NAME%.exe}-$RELEASE_TAG${ASSET_NAME#${ASSET_NAME%.exe}}"
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/*
+
+  release:
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download built assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.metadata.outputs.tag }}
+          name: rbxlx-to-rojo ${{ needs.metadata.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: dist/*
