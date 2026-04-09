@@ -14,21 +14,23 @@ path = "src/cli.rs"
 required-features = ["cli"]
 
 [dependencies]
-env_logger = "0.6"
-lazy_static = "1.4"
-log = "0.4"
+env_logger = "0.11.9"
+lazy_static = "1.5.0"
+log = "0.4.29"
+ustr = "1.1.0"
 rbx_binary = { git = "https://github.com/rojo-rbx/rbx-dom/", branch = "master" }
 rbx_dom_weak = { git = "https://github.com/rojo-rbx/rbx-dom/", branch = "master" }
-rbx_reflection = "3" # TODO: This won't always be latest, and that's an issue
+rbx_reflection_database = "2.0.2"
+rbx_reflection = "6.1.0" # TODO: This won't always be latest, and that's an issue
 rbx_xml = { git = "https://github.com/rojo-rbx/rbx-dom/", branch = "master" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 
 # CLI
 nfd = { git = "https://github.com/saurvs/nfd-rs", optional = true }
 
 [dev-dependencies]
-pretty_assertions = "0.6"
+pretty_assertions = "1.4.1"
 
 [features]
 cli = ["nfd"]

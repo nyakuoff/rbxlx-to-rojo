@@ -1,15 +1,24 @@
 name: Test rbxlx-to-rojo
+
 on:
   push:
-    branches:
-    - master
+    branches: [master]
   pull_request:
-    branches:
-    - master
+    branches: [master]
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v1
-    - name: Run tests
-      run: cargo test
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: cargo test --locked

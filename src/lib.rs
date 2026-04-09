@@ -1,7 +1,6 @@
 use log::debug;
 use rbx_dom_weak::{
-    types::{Ref, Variant},
-    Instance, WeakDom,
+    Instance, Ustr, WeakDom, types::{Ref, Variant}
 };
 use std::{
     borrow::Cow,
@@ -33,6 +32,7 @@ fn repr_instance<'a>(
     child: &'a Instance,
     has_scripts: &'a HashMap<Ref, bool>,
 ) -> Option<(Vec<Instruction<'a>>, Cow<'a, Path>)> {
+    let db = rbx_reflection_database::get().unwrap();
     if has_scripts.get(&child.referent()) != Some(&true) {
         return None;
     }
@@ -71,7 +71,7 @@ fn repr_instance<'a>(
                 _ => unreachable!(),
             };
 
-            let source = match child.properties.get("Source").expect("no Source") {
+            let source = match child.properties.get(&Ustr::from("Source")).expect("no Source") {
                 Variant::String(value) => value,
                 _ => unreachable!(),
             }
@@ -168,11 +168,11 @@ fn repr_instance<'a>(
 
         other_class => {
             // When all else fails, we can make a meta folder if there's scripts in it
-            match rbx_reflection::get_class_descriptor(other_class) {
+            match db.classes.get(other_class) {
                 Some(reflected) => {
                     let treat_as_service = RESPECTED_SERVICES.contains(other_class);
                     // Don't represent services not in respected-services
-                    if reflected.is_service() && !treat_as_service {
+                    if reflected.tags.contains(&rbx_reflection::ClassTag::Service) && !treat_as_service {
                         return None;
                     }
 
@@ -208,7 +208,7 @@ fn repr_instance<'a>(
             // If there are scripts, we'll need to make a .meta.json folder
             let folder_path: Cow<'a, Path> = Cow::Owned(base.join(&child.name));
             let meta = MetaFile {
-                class_name: Some(child.class.clone()),
+                class_name: Some(child.class.clone().to_string()),
                 // properties: properties.into_iter().collect(),
                 ignore_unknown_instances: true,
             };
@@ -253,7 +253,7 @@ impl<'a, I: InstructionReader + ?Sized> TreeIterator<'a, I> {
                     instructions.push(Instruction::AddToTree {
                         name: child.name.clone(),
                         partition: TreePartition {
-                            class_name: child.class.clone(),
+                            class_name: child.class.clone().to_string(),
                             children: child
                                 .children()
                                 .iter()

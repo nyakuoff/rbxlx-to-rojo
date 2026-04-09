@@ -1,19 +1,25 @@
 use crate::{filesystem::FileSystem, process_instructions, structures::*};
 use log::info;
 use pretty_assertions::assert_eq;
-use rbx_dom_weak::types::Variant;
+use rbx_dom_weak::{
+    types::Variant,
+};
+use ustr::{
+    Ustr,IdentityHasher
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
     io::ErrorKind,
     time::Instant,
+    hash::BuildHasherDefault,
 };
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 enum VirtualFileContents {
     Bytes(String),
-    Instance(HashMap<String, Variant>),
+    Instance(HashMap<Ustr, Variant, BuildHasherDefault<IdentityHasher>>),
     Vfs(VirtualFileSystem),
 }
 
@@ -83,7 +89,7 @@ impl InstructionReader for VirtualFileSystem {
                                 .expect("couldn't decode encoded xml");
                             let child_id = tree.root().children()[0];
                             let child_instance = tree.get_by_ref(child_id).unwrap();
-                            VirtualFileContents::Instance(child_instance.properties.to_owned())
+                            VirtualFileContents::Instance(child_instance.properties.clone())
                         } else {
                             VirtualFileContents::Bytes(contents_string)
                         },
