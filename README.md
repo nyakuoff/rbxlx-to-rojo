@@ -21,7 +21,7 @@ Before you can port your game into Rojo projects, you need a place/model file. I
 1. Open a terminal in the folder where `rbxl2rojo` is installed.
 2. Run one of these commands:
 	- `rbxl2rojo` (opens file/folder picker dialogs)
-	- `rbxl2rojo /path/to/place.rbxmx /path/to/output-folder`
+	- `rbxl2rojo /path/to/place.rbxl /path/to/output-folder`
 3. Wait for conversion to finish, then open the generated project folder.
 
 If you followed the steps correctly, you should see something that looks like this:
