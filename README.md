@@ -1,14 +1,14 @@
-# rbxl2rojo (now supports .rbxl!)
-Tool to convert existing Roblox games into Rojo projects by reading their `rbxl` or `rbxlx` place files.
+# rbxl2rojo (supports .rbxl, .rbxm, .rbxlx, .rbxmx)
+Tool to convert existing Roblox games into Rojo projects by reading their `rbxl`, `rbxm`, `rbxlx`, or `rbxmx` files.
 
 # Using rbxl2rojo
 ## Setup
 Before you can use rbxl2rojo, you need the following:
 
 - At least Rojo 0.5.0 Alpha 12 or higher to use the tool.
-- A rbxlx place file that at least has scripts
+- A place/model file (`.rbxl`, `.rbxm`, `.rbxlx`, or `.rbxmx`) that has scripts
 
-If there aren't any scripts in the rbxlx file, rbxl2rojo will return an error.
+If there aren't any scripts in the selected file, rbxl2rojo will return an error.
 
 Download the latest release of rbxl2rojo here: https://github.com/nyakuoff/rbxl2rojo/releases
 ## Porting the game
@@ -18,9 +18,11 @@ Before you can port your game into Rojo projects, you need a place/model file. I
 
 - Create a folder and name it whatever you want.
 ### Steps to port the game:
-1. Double-click on rbxl2rojo on wherever you installed it.
-2. Select the .rbxl file you saved earlier.
-3. Now, select the folder that you just created.
+1. Open a terminal in the folder where `rbxl2rojo` is installed.
+2. Run one of these commands:
+	- `rbxl2rojo` (opens file/folder picker dialogs)
+	- `rbxl2rojo /path/to/place.rbxmx /path/to/output-folder`
+3. Wait for conversion to finish, then open the generated project folder.
 
 If you followed the steps correctly, you should see something that looks like this:
 ![](assets/folders.png)

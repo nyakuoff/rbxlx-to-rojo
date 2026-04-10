@@ -1,10 +1,9 @@
 use log::info;
 use rbxlx_to_rojo::{filesystem::FileSystem, process_instructions};
 use std::{
-    borrow::Cow,
     fmt, fs,
     io::{self, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 
@@ -12,6 +11,7 @@ use std::{
 enum Problem {
     BinaryDecodeError(rbx_binary::DecodeError),
     InvalidFile,
+    InvalidUsage,
     IoError(&'static str, io::Error),
     NFDCancel,
     NFDError(String),
@@ -28,18 +28,26 @@ impl fmt::Display for Problem {
             ),
 
             Problem::InvalidFile => {
-                write!(formatter, "The file provided does not have a recognized file extension")
+                write!(
+                    formatter,
+                    "Unsupported file extension. Supported: .rbxl, .rbxm, .rbxlx, .rbxmx"
+                )
             }
+
+            Problem::InvalidUsage => write!(
+                formatter,
+                "Invalid arguments. Use --help to see usage instructions."
+            ),
 
             Problem::IoError(doing_what, error) => {
                 write!(formatter, "While attempting to {}, {}", doing_what, error)
             }
 
-            Problem::NFDCancel => write!(formatter, "Didn't choose a file."),
+            Problem::NFDCancel => write!(formatter, "No file or folder was selected."),
 
             Problem::NFDError(error) => write!(
                 formatter,
-                "Something went wrong when choosing a file: {}",
+                "Something went wrong when opening the file picker: {}",
                 error,
             ),
 
@@ -77,7 +85,100 @@ impl log::Log for WrappedLogger {
     fn flush(&self) {}
 }
 
+fn print_usage(program: &str) {
+    println!("rbxl2rojo {}", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("Supported input formats: .rbxl, .rbxm, .rbxlx, .rbxmx");
+    println!();
+    println!("Usage:");
+    println!("  {} <place-file> <output-folder>", program);
+    println!("  {}", program);
+    println!();
+    println!("Examples:");
+    println!("  {}", program);
+    println!("  {} game.rbxmx ./exports", program);
+    println!();
+    println!("Default: open file and folder dialogs.");
+    println!("With two arguments: use paths directly from terminal.");
+}
+
+enum InputMode {
+    Picker,
+    Paths(PathBuf, PathBuf),
+}
+
+fn parse_cli_inputs() -> Result<Option<InputMode>, Problem> {
+    let args = std::env::args().collect::<Vec<_>>();
+    let program = args.first().map(String::as_str).unwrap_or("rbxl2rojo");
+
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        print_usage(program);
+        return Ok(None);
+    }
+
+    match args.len() {
+        1 => Ok(Some(InputMode::Picker)),
+        3 => Ok(Some(InputMode::Paths(
+            PathBuf::from(&args[1]),
+            PathBuf::from(&args[2]),
+        ))),
+        _ => {
+            print_usage(program);
+            Err(Problem::InvalidUsage)
+        }
+    }
+}
+
+fn read_inputs_from_picker() -> Result<(PathBuf, PathBuf), Problem> {
+    let file_path = match nfd::open_file_dialog(Some("rbxl,rbxm,rbxlx,rbxmx"), None)
+        .map_err(|error| Problem::NFDError(error.to_string()))?
+    {
+        nfd::Response::Okay(path) => PathBuf::from(path),
+        nfd::Response::Cancel => return Err(Problem::NFDCancel),
+        _ => return Err(Problem::InvalidUsage),
+    };
+
+    let default_root = file_path.parent().unwrap_or(Path::new("."));
+    let root = match nfd::open_pick_folder(Some(&default_root.to_string_lossy()))
+        .map_err(|error| Problem::NFDError(error.to_string()))?
+    {
+        nfd::Response::Okay(path) => PathBuf::from(path),
+        nfd::Response::Cancel => return Err(Problem::NFDCancel),
+        _ => return Err(Problem::InvalidUsage),
+    };
+
+    Ok((file_path, root))
+}
+
 fn routine() -> Result<(), Problem> {
+    let input_mode = match parse_cli_inputs()? {
+        Some(values) => values,
+        None => return Ok(()),
+    };
+
+    let (file_path, mut root) = match input_mode {
+        InputMode::Picker => read_inputs_from_picker()?,
+        InputMode::Paths(file_path, root) => (file_path, root),
+    };
+
+    if !file_path.exists() {
+        return Err(Problem::IoError(
+            "read the place file",
+            io::Error::new(io::ErrorKind::NotFound, "place file does not exist"),
+        ));
+    }
+
+    if !root.exists() {
+        fs::create_dir_all(&root).map_err(|error| Problem::IoError("create output folder", error))?;
+    }
+
+    if !root.is_dir() {
+        return Err(Problem::IoError(
+            "use output folder",
+            io::Error::new(io::ErrorKind::InvalidInput, "output path is not a folder"),
+        ));
+    }
+
     let env_logger = env_logger::Builder::new()
         .filter_level(log::LevelFilter::Info)
         .build();
@@ -93,18 +194,6 @@ fn routine() -> Result<(), Problem> {
 
     info!("rbxlx-to-rojo {}", env!("CARGO_PKG_VERSION"));
 
-    info!("Select a place file.");
-    let file_path = PathBuf::from(match std::env::args().nth(1) {
-        Some(text) => text,
-        None => match nfd::open_file_dialog(Some("rbxl,rbxm,rbxlx,rbxmx"), None)
-            .map_err(|error| Problem::NFDError(error.to_string()))?
-        {
-            nfd::Response::Okay(path) => path,
-            nfd::Response::Cancel => Err(Problem::NFDCancel)?,
-            _ => unreachable!(),
-        },
-    });
-
     info!("Opening place file");
     let file_source = BufReader::new(
         fs::File::open(&file_path)
@@ -112,41 +201,33 @@ fn routine() -> Result<(), Problem> {
     );
     info!("Decoding place file, this is the longest part...");
 
-    let tree = match file_path
+    let extension = file_path
         .extension()
-        .map(|extension| extension.to_string_lossy())
-    {
-        Some(Cow::Borrowed("rbxmx")) | Some(Cow::Borrowed("rbxlx")) => {
+        .map(|value| value.to_string_lossy().to_ascii_lowercase());
+
+    let tree = match extension.as_deref() {
+        Some("rbxmx") | Some("rbxlx") => {
             rbx_xml::from_reader_default(file_source).map_err(Problem::XMLDecodeError)
         }
-        Some(Cow::Borrowed("rbxm")) | Some(Cow::Borrowed("rbxl")) => {
+        Some("rbxm") | Some("rbxl") => {
             rbx_binary::from_reader(file_source).map_err(Problem::BinaryDecodeError)
         }
         _ => Err(Problem::InvalidFile),
     }?;
 
-    info!("Select the path to put your Rojo project in.");
-    let root = PathBuf::from(match std::env::args().nth(2) {
-        Some(text) => text,
-        None => match nfd::open_pick_folder(Some(&file_path.parent().unwrap().to_string_lossy()))
-            .map_err(|error| Problem::NFDError(error.to_string()))?
-        {
-            nfd::Response::Okay(path) => path,
-            nfd::Response::Cancel => Err(Problem::NFDCancel)?,
-            _ => unreachable!(),
-        },
-    });
+    root = root.canonicalize().unwrap_or(root);
 
-    let mut filesystem = FileSystem::from_root(root.join(file_path.file_stem().unwrap()).into());
+    let project_name = file_path.file_stem().ok_or(Problem::InvalidFile)?;
+    let mut filesystem = FileSystem::from_root(root.join(project_name).into());
 
     log_file.write().unwrap().replace(
-        fs::File::create(root.join("rbxlx-to-rojo.log"))
+        fs::File::create(root.join("rbxl2rojo.log"))
             .map_err(|error| Problem::IoError("couldn't create log file", error))?,
     );
 
     info!("Starting processing, please wait a bit...");
     process_instructions(&tree, &mut filesystem);
-    info!("Done! Check rbxlx-to-rojo.log for a full log.");
+    info!("Done! Check rbxl2rojo.log for a full log.");
     Ok(())
 }
 

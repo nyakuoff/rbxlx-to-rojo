@@ -26,7 +26,7 @@ rbx_xml = { git = "https://github.com/rojo-rbx/rbx-dom/", branch = "master" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 
-# CLI
+# Optional file picker mode for CLI
 nfd = { git = "https://github.com/saurvs/nfd-rs", optional = true }
 
 [dev-dependencies]
